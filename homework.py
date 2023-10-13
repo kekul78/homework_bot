@@ -19,6 +19,7 @@ load_dotenv()
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+UNIX_TIME_6_HOURS = 21600
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
@@ -30,15 +31,13 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s [%(levelname)s] %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('homework')
 logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
 handler = RotatingFileHandler('my_logger.log',
                               maxBytes=50000000,
                               backupCount=5)
+handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
@@ -55,9 +54,10 @@ def check_tokens():
 def send_message(bot, message):
     """отправляет сообщение в Telegram чат."""
     try:
+        logger.debug('Начало отправки сообщения')
         bot.send_message(TELEGRAM_CHAT_ID, message)
     except Exception:
-
+        logger.error(f'Отправка сообщения невозможна: {Exception}')
         raise BotMessageError(
             f'Отправка сообщения невозможна: {Exception}')
     else:
@@ -79,21 +79,19 @@ def get_api_answer(timestamp):
             )
         return homework_statuses.json()
     except Exception as error:
-        raise ApiAnswerError(f'Возникла ошибка: {error}')
+        raise ApiAnswerError(f'Возникла ошибка: {error}'
+                             f'С параметрами {ENDPOINT}, {HEADERS}, {payload}')
 
 
 def check_response(response):
     """проверяет ответ API на соответствие документации."""
     if isinstance(response, list):
         response = response[0]
-        logger.error('API структура данных не соответствует ожиданиям')
-        raise TypeError('API структура данных не соответствует ожиданиям')
+        raise TypeError('API структура данных пришла в формате списка')
     if not isinstance(response, dict):
-        logger.error('Некорректный ответ от API')
-        raise TypeError('Некорректный ответ от API')
+        raise TypeError('API структура данных пришла не в формате словоря')
     homeworks = response.get('homeworks')
     if not isinstance(homeworks, list):
-        logger.error('Домашки пришли не ввиде списка')
         raise TypeError('Домашки пришли не ввиде списка')
     return homeworks
 
@@ -105,7 +103,6 @@ def parse_status(homework):
     homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
     if homework_name is None:
-        logger.error('Отсутствует ключ "homework_name"')
         raise KeyError('Отсутствует ключ "homework_name"')
     if homework_status is None:
         logger.debug('Статус домашних работ не изменился.')
@@ -122,14 +119,19 @@ def main():
     if not check_tokens():
         sys.exit(0)
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = 1549962000
+    timestamp = int(time.time()) - UNIX_TIME_6_HOURS
+    crutch = 'Костыли это плохо, но с нимим веселее :)'
     while True:
         try:
             response = get_api_answer(timestamp)
             homework = check_response(response)
-            send_message(bot, parse_status(homework[0]))
+            if crutch != homework[0]:
+                send_message(bot, parse_status(homework[0]))
+                crutch = homework[0]
+            timestamp = response['current_date']
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
+            send_message(bot, message)
             logger.error(message)
             raise BotMainError(message)
         finally:
