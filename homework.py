@@ -19,7 +19,6 @@ load_dotenv()
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-UNIX_TIME_6_HOURS = 21600
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
@@ -119,15 +118,16 @@ def main():
     if not check_tokens():
         sys.exit(0)
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time()) - UNIX_TIME_6_HOURS
+    timestamp = 0
     crutch = 'Костыли это плохо, но с нимим веселее :)'
     while True:
         try:
             response = get_api_answer(timestamp)
             homework = check_response(response)
-            if crutch != homework[0]:
+            print(homework[0])
+            if crutch != homework:
                 send_message(bot, parse_status(homework[0]))
-                crutch = homework[0]
+                crutch = homework
             timestamp = response['current_date']
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
