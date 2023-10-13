@@ -124,7 +124,6 @@ def main():
         try:
             response = get_api_answer(timestamp)
             homework = check_response(response)
-            print(homework[0])
             if crutch != homework:
                 send_message(bot, parse_status(homework[0]))
                 crutch = homework
