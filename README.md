@@ -5,7 +5,7 @@
 ## Стек технологий
 
 * Python 3.11.3,
-* Python-telegram-bot  13.7
+* Python-telegram-bot  13.7,
 * Requests 2.26.0
 
 Автор: 
